@@ -191,6 +191,35 @@ grep -q "execCli(\[\s*'-y'\s*,\s*'metaharness@latest'" "$F" 2>/dev/null || \
 grep -q "cwd: opts" "$F" || miss="$miss no-cwd-passthrough"
 [[ -z "$miss" ]] && ok || bad "$miss"
 
+step "17z73. metaharness packages tilde-pinned (anti-caret regression, iter 110)"
+miss=""
+# ADR-150 architectural-constraint review-round-1 mandated tilde pinning
+# (~ not ^) for @metaharness/* because upstream is unstable (5 releases
+# in 2.7h was the iter-3 observation). Tilde auto-absorbs patches but
+# stays on the same MINOR. Caret would auto-absorb minor bumps — too
+# permissive for v0.1.x upstream.
+#
+# Smoke catches regression from tilde → caret OR loose-pinning.
+for pj in "$ROOT/../../package.json" "$ROOT/../../ruflo/package.json" "$ROOT/../../v3/@claude-flow/cli/package.json"; do
+  [[ -f "$pj" ]] || continue
+  # Look for any @metaharness/* or 'metaharness' line with NON-tilde pinning
+  BAD=$(node -e "
+    const j = JSON.parse(require('fs').readFileSync('$pj'));
+    const od = j.optionalDependencies || {};
+    const offenders = [];
+    for (const [k, v] of Object.entries(od)) {
+      if (/^@metaharness\//.test(k) || k === 'metaharness') {
+        if (!String(v).startsWith('~')) offenders.push(k + '=' + v);
+      }
+    }
+    console.log(offenders.join(','));
+  " 2>/dev/null)
+  if [[ -n "$BAD" ]]; then
+    miss="$miss non-tilde-pin-in-$(basename $(dirname $pj)):$BAD"
+  fi
+done
+[[ -z "$miss" ]] && ok || bad "$miss"
+
 step "17z72. weekly cron exposes workflow_dispatch inputs for policy tuning (iter 109)"
 miss=""
 W="$ROOT/../../.github/workflows/oia-audit-weekly.yml"
