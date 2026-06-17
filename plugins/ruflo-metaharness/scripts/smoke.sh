@@ -191,6 +191,21 @@ grep -q "execCli(\[\s*'-y'\s*,\s*'metaharness@latest'" "$F" 2>/dev/null || \
 grep -q "cwd: opts" "$F" || miss="$miss no-cwd-passthrough"
 [[ -z "$miss" ]] && ok || bad "$miss"
 
+step "17z45. bench-similarity artifact + summary in CI (iter 82)"
+miss=""
+W="$ROOT/../../.github/workflows/metaharness-ci.yml"
+# JSON output captured into artifact path
+grep -q "/tmp/bench-similarity.json" "$W" 2>/dev/null || miss="$miss no-artifact-path"
+# Format json flag added
+grep -q -- "--format json > /tmp/bench-similarity.json" "$W" 2>/dev/null || miss="$miss no-json-redirect"
+# Upload artifact step present
+grep -q "Upload bench-similarity artifact" "$W" 2>/dev/null || miss="$miss no-upload-step"
+grep -q "bench-similarity-\${{ github.run_id }}" "$W" 2>/dev/null || miss="$miss no-artifact-name"
+grep -q "retention-days: 90" "$W" 2>/dev/null || miss="$miss no-retention"
+# GITHUB_STEP_SUMMARY summary table
+grep -q "Similarity perf (iter 82" "$W" 2>/dev/null || miss="$miss no-summary-header"
+[[ -z "$miss" ]] && ok || bad "$miss"
+
 step "17z44. fingerprint-schema compat tripwire (iter 81)"
 miss=""
 F="$ROOT/../../scripts/check-fingerprint-schema.mjs"

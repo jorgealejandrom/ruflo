@@ -288,10 +288,29 @@ jobs:
         # CI runners are slower than Apple-Silicon baseline (~0.4μs); 10μs
         # ceiling gives ~25× headroom while still catching ~10× regressions.
         # 100k iters keeps the job fast (~50ms total work).
+        # iter 82 — also capture JSON output as artifact so historical perf
+        # data accumulates. Future regression analysis can diff across runs
+        # without re-running the bench.
         run: |
           node plugins/ruflo-metaharness/scripts/bench-similarity.mjs \
             --iters 100000 \
-            --max-mean-us 10
+            --max-mean-us 10 \
+            --format json > /tmp/bench-similarity.json
+          echo "## Similarity perf (iter 82 — artifact tracking)" >> $GITHUB_STEP_SUMMARY
+          node -e "
+            const j = JSON.parse(require('fs').readFileSync('/tmp/bench-similarity.json'));
+            for (const r of j.results) {
+              console.log('| ' + r.label.padEnd(18) + ' | mean ' + r.meanUs.toFixed(3) + 'μs | p99 ' + r.p99Us.toFixed(3) + 'μs |');
+            }
+          " | tee -a $GITHUB_STEP_SUMMARY
+
+      - name: Upload bench-similarity artifact (iter 82)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-similarity-${{ github.run_id }}
+          path: /tmp/bench-similarity.json
+          retention-days: 90
 
       - name: Build CLI dist (for dispatcher round-trip)
         run: |
